@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Gallery | Nishitha</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ---------- Colors (change these to restyle the gallery) ---------- */
+    :root {
+      --ink: #16213a;
+      --paper: #f6f7fb;
+      --teal: #0e8f83;
+      --amber: #f0a030;
+      --line: #dde1ec;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Bricolage Grotesque", "Segoe UI", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    header { text-align: center; padding: 40px 20px 10px; }
+    header h1 { margin: 0 0 6px; font-size: clamp(30px, 5vw, 44px); }
+    header p { margin: 0; color: #566078; }
+
+    /* Category filter buttons */
+    .filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 22px 20px; }
+    .filters button {
+      padding: 8px 20px;
+      border: 2px solid var(--line);
+      border-radius: 20px;
+      background: #fff;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, transform 0.2s;
+    }
+    .filters button:hover { transform: translateY(-2px); border-color: var(--teal); }
+    .filters button.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+    /* The gallery grid: columns adjust automatically to the screen width (responsive) */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 18px;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 20px 50px;
+    }
+
+    .tile {
+      position: relative;
+      padding: 0;
+      border: none;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      cursor: pointer;
+      background: var(--line);
+      box-shadow: 0 4px 12px rgba(22, 33, 58, 0.1);
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
+
+    /* Hover effects: image zooms in, caption slides up */
+    .tile:hover { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(22, 33, 58, 0.22); }
+    .tile:hover img { transform: scale(1.1); }
+    .tile .caption {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 12px 14px;
+      text-align: left;
+      color: #fff;
+      font-size: 16px;
+      background: linear-gradient(transparent, rgba(22, 33, 58, 0.85));
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+    .tile:hover .caption, .tile:focus-visible .caption { transform: translateY(0); }
+    .tile:focus-visible, .filters button:focus-visible, .lightbox button:focus-visible {
+      outline: 3px solid var(--amber);
+      outline-offset: 2px;
+    }
+
+    /* ---------- Lightbox (big image view) ---------- */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: rgba(10, 16, 32, 0.92);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+      z-index: 20;
+    }
+    .lightbox.open { opacity: 1; visibility: visible; }
+    .lightbox img {
+      max-width: 86vw;
+      max-height: 70vh;
+      border-radius: 10px;
+      transition: opacity 0.25s;
+    }
+    .lightbox .info { color: #fff; text-align: center; }
+    .lightbox .info small { display: block; color: #9aa7c7; margin-top: 4px; }
+
+    .lightbox button {
+      position: absolute;
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .lightbox button:hover { background: var(--teal); }
+    .lightbox .close { top: 18px; right: 18px; }
+    .lightbox .prev { left: 18px; top: 50%; }
+    .lightbox .next { right: 18px; top: 50%; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>My Image Gallery</h1>
+    <p>Click any picture to open it. Use the arrows to move between pictures.</p>
+  </header>
+
+  <div class="filters" id="filters"></div>
+  <div class="gallery" id="gallery"></div>
+
+  <div class="lightbox" id="lightbox">
+    <button class="close" id="close" aria-label="Close">&times;</button>
+    <button class="prev" id="prev" aria-label="Previous picture">&#10094;</button>
+    <img id="big" alt="">
+    <div class="info"><span id="title"></span><small id="count"></small></div>
+    <button class="next" id="next" aria-label="Next picture">&#10095;</button>
+  </div>
+
+  <script>
+    // ---------- Sample pictures (made with code so the gallery works without any files) ----------
+    // To use YOUR OWN photos: put them in the same folder as this file and
+    // replace art(...) with the file name, for example: src: "rose.jpg"
+    function art(top, bottom, shape) {
+      const shapes = {
+        sun: '<circle cx="300" cy="90" r="45" fill="#ffe08a"/><path d="M0 300 Q150 190 300 260 T600 240 V400 H0Z" fill="rgba(0,0,0,0.25)"/>',
+        flowers: '<circle cx="170" cy="180" r="42" fill="#ff8fb1"/><circle cx="300" cy="140" r="52" fill="#ffd166"/><circle cx="430" cy="190" r="40" fill="#ffffff"/><rect x="296" y="190" width="8" height="210" fill="rgba(0,0,0,0.25)"/>',
+        circles: '<circle cx="220" cy="200" r="120" fill="rgba(255,255,255,0.25)"/><circle cx="340" cy="200" r="120" fill="rgba(255,255,255,0.2)"/><circle cx="280" cy="140" r="90" fill="rgba(0,0,0,0.15)"/>'
+      };
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">' +
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + top + '"/><stop offset="1" stop-color="' + bottom + '"/></linearGradient></defs>' +
+        '<rect width="600" height="400" fill="url(#g)"/>' + shapes[shape] + '</svg>';
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+
+    const pictures = [
+      { title: "Morning Sun",    category: "Sky",      src: art("#ffb86b", "#ff6b6b", "sun") },
+      { title: "Pink Garden",    category: "Garden",   src: art("#a8e6a1", "#2d8a5b", "flowers") },
+      { title: "Soft Circles",   category: "Patterns", src: art("#7f8cff", "#3a2e8c", "circles") },
+      { title: "Blue Hour",      category: "Sky",      src: art("#7ec8ff", "#1f4f9c", "sun") },
+      { title: "Sunny Flowers",  category: "Garden",   src: art("#fff1a8", "#5fb878", "flowers") },
+      { title: "Teal Rings",     category: "Patterns", src: art("#6fe3d0", "#0e6f7a", "circles") },
+      { title: "Evening Glow",   category: "Sky",      src: art("#d98cff", "#5a2d91", "sun") },
+      { title: "Spring Bloom",   category: "Garden",   src: art("#c9f0ff", "#4aa3a0", "flowers") },
+      { title: "Amber Circles",  category: "Patterns", src: art("#ffd166", "#e07a1f", "circles") }
+    ];
+
+    // ---------- Page elements ----------
+    const filtersEl = document.getElementById("filters");
+    const galleryEl = document.getElementById("gallery");
+    const lightbox = document.getElementById("lightbox");
+    const big = document.getElementById("big");
+    const titleEl = document.getElementById("title");
+    const countEl = document.getElementById("count");
+
+    let visible = pictures.slice();   // pictures currently shown (changes with the filter)
+    let index = 0;                    // which picture is open in the lightbox
+
+    // ---------- Filter buttons: All + one for each category ----------
+    const categories = ["All"].concat(Array.from(new Set(pictures.map(function (p) { return p.category; }))));
+
+    categories.forEach(function (name) {
+      const b = document.createElement("button");
+      b.textContent = name;
+      if (name === "All") b.classList.add("active");
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".filters button").forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+        visible = name === "All" ? pictures.slice() : pictures.filter(function (p) { return p.category === name; });
+        drawGallery();
+      });
+      filtersEl.appendChild(b);
+    });
+
+    // ---------- Draw the grid ----------
+    function drawGallery() {
+      galleryEl.innerHTML = "";
+      visible.forEach(function (p, i) {
+        const tile = document.createElement("button");
+        tile.className = "tile";
+        tile.innerHTML = '<img src="' + p.src + '" alt="' + p.title + '"><span class="caption">' + p.title + '</span>';
+        tile.addEventListener("click", function () { openLightbox(i); });
+        galleryEl.appendChild(tile);
+      });
+    }
+
+    // ---------- Lightbox: open, close, next, previous ----------
+    function showPicture() {
+      const p = visible[index];
+      big.src = p.src;
+      big.alt = p.title;
+      titleEl.textContent = p.title;
+      countEl.textContent = (index + 1) + " of " + visible.length + "  |  " + p.category;
+    }
+    function openLightbox(i) { index = i; showPicture(); lightbox.classList.add("open"); }
+    function closeLightbox() { lightbox.classList.remove("open"); }
+    function next() { index = (index + 1) % visible.length; showPicture(); }
+    function prev() { index = (index - 1 + visible.length) % visible.length; showPicture(); }
+
+    document.getElementById("next").addEventListener("click", next);
+    document.getElementById("prev").addEventListener("click", prev);
+    document.getElementById("close").addEventListener("click", closeLightbox);
+    lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
+
+    // Keyboard: left/right arrows and Esc
+    document.addEventListener("keydown", function (e) {
+      if (!lightbox.classList.contains("open")) return;
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "Escape") closeLightbox();
+    });
+
+    drawGallery();
+  </script>
+
+</body>
+</html>
